@@ -1,46 +1,138 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import AgeTimeline from "@/components/AgeTimeline";
+import { useCallback, useState, useSyncExternalStore } from "react";
+import AgeTimeline, { type AgeCard } from "@/components/AgeTimeline";
 import CameraCapture from "@/components/CameraCapture";
+import { FUTURE_AGE_STEPS, type AgeStep } from "@/lib/ages";
 import type { AgedImage } from "@/lib/aging";
+import { composeTimeline, type TimelineCard } from "@/lib/share/compose-timeline";
 
-type Stage = "intro" | "capture" | "processing" | "result" | "error";
+type Stage = "intro" | "capture" | "result";
 
 export default function Home() {
   const [stage, setStage] = useState<Stage>("intro");
-  const [original, setOriginal] = useState<string>("");
-  const [results, setResults] = useState<AgedImage[]>([]);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [original, setOriginal] = useState("");
+  const [cards, setCards] = useState<AgeCard[]>([]);
+  const [exporting, setExporting] = useState(false);
 
-  const handleCapture = useCallback(async (imageDataUrl: string) => {
-    setOriginal(imageDataUrl);
-    setStage("processing");
-    setErrorMsg("");
-    try {
-      const res = await fetch("/api/age", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: imageDataUrl }),
+  // Web Share API 是「客户端能力」：服务端快照返回 false，客户端返回实际支持
+  // 情况。用 useSyncExternalStore 取值，既避免水合不一致，也不在 effect 里 setState。
+  const canShare = useSyncExternalStore(
+    subscribeNoop,
+    () => typeof navigator !== "undefined" && typeof navigator.share === "function",
+    () => false,
+  );
+
+  // 生成单个年龄段：失败可单独重试。
+  const runStep = useCallback((step: AgeStep, img: string) => {
+    setCards((prev) =>
+      prev.map((c) =>
+        c.step.id === step.id ? { ...c, status: "pending", result: undefined } : c,
+      ),
+    );
+    fetch("/api/age", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: img, stepId: step.id }),
+    })
+      .then(async (res) => {
+        const data = (await res.json()) as { result?: AgedImage; error?: string };
+        if (!res.ok || !data.result) throw new Error(data.error ?? "失败");
+        const result = data.result;
+        setCards((prev) =>
+          prev.map((c) => (c.step.id === step.id ? { ...c, status: "done", result } : c)),
+        );
+      })
+      .catch(() => {
+        setCards((prev) =>
+          prev.map((c) => (c.step.id === step.id ? { ...c, status: "error" } : c)),
+        );
       });
-      const data = (await res.json()) as { results?: AgedImage[]; error?: string };
-      if (!res.ok || !data.results) {
-        throw new Error(data.error ?? "处理失败");
-      }
-      setResults(data.results);
-      setStage("result");
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "处理失败");
-      setStage("error");
-    }
   }, []);
+
+  const handleCapture = useCallback(
+    (img: string) => {
+      setOriginal(img);
+      setCards(FUTURE_AGE_STEPS.map((step) => ({ step, status: "pending" as const })));
+      setStage("result");
+      // 6 个年龄段并行 fan-out，各自就绪即展示。
+      FUTURE_AGE_STEPS.forEach((step) => runStep(step, img));
+    },
+    [runStep],
+  );
+
+  const handleRetry = useCallback(
+    (stepId: string) => {
+      const step = FUTURE_AGE_STEPS.find((s) => s.id === stepId);
+      if (step) runStep(step, original);
+    },
+    [original, runStep],
+  );
 
   const reset = useCallback(() => {
     setOriginal("");
-    setResults([]);
-    setErrorMsg("");
+    setCards([]);
     setStage("intro");
   }, []);
+
+  // 组装用于导出的卡片：现在 + 已完成的年龄段。
+  const buildTimelineCards = useCallback((): TimelineCard[] => {
+    const now: TimelineCard = {
+      label: "现在",
+      yearsFromNow: 0,
+      imageUrl: original,
+      placeholder: false,
+    };
+    const done = cards.flatMap<TimelineCard>((c) =>
+      c.status === "done" && c.result
+        ? [
+            {
+              label: c.step.label,
+              yearsFromNow: c.step.yearsFromNow,
+              imageUrl: c.result.imageUrl,
+              placeholder: c.result.placeholder,
+              intensity: c.result.intensity,
+            },
+          ]
+        : [],
+    );
+    return [now, ...done];
+  }, [original, cards]);
+
+  const handleDownload = useCallback(async () => {
+    setExporting(true);
+    try {
+      const blob = await composeTimeline(buildTimelineCards());
+      triggerDownload(blob, "time-machine.png");
+    } finally {
+      setExporting(false);
+    }
+  }, [buildTimelineCards]);
+
+  const handleShare = useCallback(async () => {
+    setExporting(true);
+    try {
+      const blob = await composeTimeline(buildTimelineCards());
+      const file = new File([blob], "time-machine.png", { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "时光机",
+          text: "看看我未来几十年的样子",
+        });
+      } else {
+        triggerDownload(blob, "time-machine.png");
+      }
+    } catch {
+      // 用户取消分享等情况，静默忽略
+    } finally {
+      setExporting(false);
+    }
+  }, [buildTimelineCards]);
+
+  const pending = cards.some((c) => c.status === "pending");
+  const doneCount = cards.filter((c) => c.status === "done").length;
+  const canExport = !pending && doneCount > 0;
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center px-5 py-10 sm:py-16">
@@ -78,41 +170,62 @@ export default function Home() {
         </section>
       )}
 
-      {stage === "processing" && (
-        <section className="flex flex-col items-center gap-6 py-16 text-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/15 border-t-emerald-400" />
-          <p className="animate-pulse text-zinc-300">时光机运转中，正在推演你的未来…</p>
-        </section>
-      )}
-
       {stage === "result" && (
         <section className="w-full">
-          <AgeTimeline originalImage={original} results={results} />
-          <div className="mt-10 flex flex-col items-center gap-4">
+          <AgeTimeline originalImage={original} cards={cards} onRetry={handleRetry} />
+
+          {pending && (
+            <p className="mt-6 animate-pulse text-center text-sm text-zinc-400">
+              时光机运转中，正在逐张推演你的未来…
+            </p>
+          )}
+
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <button
               onClick={reset}
               className="rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               再来一次
             </button>
+            <button
+              onClick={handleDownload}
+              disabled={!canExport || exporting}
+              className="rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {exporting ? "生成中…" : "下载长图"}
+            </button>
+            {canShare && (
+              <button
+                onClick={handleShare}
+                disabled={!canExport || exporting}
+                className="rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                分享
+              </button>
+            )}
+          </div>
+
+          <div className="mt-6 flex justify-center">
             <PrivacyNote />
           </div>
         </section>
       )}
-
-      {stage === "error" && (
-        <section className="flex flex-col items-center gap-5 py-16 text-center">
-          <p className="text-rose-300">{errorMsg}</p>
-          <button
-            onClick={reset}
-            className="rounded-full border border-white/20 px-6 py-2.5 text-sm text-white transition hover:bg-white/10"
-          >
-            重新开始
-          </button>
-        </section>
-      )}
     </main>
   );
+}
+
+// useSyncExternalStore 的订阅函数：canShare 的值不会变化，故订阅为空操作。
+const subscribeNoop = () => () => {};
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function PrivacyNote() {

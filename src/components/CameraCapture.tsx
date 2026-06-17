@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useFaceDetector } from "@/lib/face/use-face-detector";
 
 interface CameraCaptureProps {
   /** 抓拍完成后回调，参数为 base64 JPEG data URL */
@@ -13,25 +14,20 @@ type CameraState = "idle" | "starting" | "ready" | "denied" | "error";
 
 // 导出图片的最长边（像素）。变老模型通常只需要中等分辨率的正脸。
 const MAX_EDGE = 512;
-
-// 实验性 Shape Detection API 的最小类型声明（仅部分浏览器支持）。
-interface DetectedFace {
-  boundingBox: DOMRectReadOnly;
-}
-interface FaceDetectorLike {
-  detect(source: CanvasImageSource): Promise<DetectedFace[]>;
-}
-interface FaceDetectorCtor {
-  new (opts?: { fastMode?: boolean; maxDetectedFaces?: number }): FaceDetectorLike;
-}
+// 判定为人脸的最低置信度
+const FACE_SCORE_THRESHOLD = 0.5;
 
 export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [state, setState] = useState<CameraState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  // 是否检测到人脸；浏览器不支持检测时恒为 true（不阻塞拍摄）。
-  const [faceReady, setFaceReady] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(false);
+
+  const { status: detectorStatus, detect } = useFaceDetector();
+
+  // 检测器就绪时才以实际检测结果为准；加载中/不可用时不阻塞拍摄。
+  const faceReady = detectorStatus === "ready" ? faceDetected : true;
 
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -68,34 +64,28 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
   // 组件卸载时关闭摄像头，避免摄像头一直亮着。
   useEffect(() => stop, [stop]);
 
-  // 可选的人脸存在检测：仅在浏览器支持实验性 FaceDetector 时启用，
-  // 否则降级为「始终可拍」。后续可替换为 MediaPipe / face-api.js。
+  // 人脸存在检测循环：仅在摄像头与检测器都就绪时运行。
   useEffect(() => {
-    if (state !== "ready") return;
-    const Ctor = (window as unknown as { FaceDetector?: FaceDetectorCtor }).FaceDetector;
-    if (!Ctor) {
-      setFaceReady(true);
-      return;
-    }
-    const detector = new Ctor({ fastMode: true, maxDetectedFaces: 1 });
+    if (state !== "ready" || detectorStatus !== "ready") return;
     let timer = 0;
     let cancelled = false;
-    const tick = async () => {
-      if (cancelled || !videoRef.current) return;
-      try {
-        const faces = await detector.detect(videoRef.current);
-        setFaceReady(faces.length > 0);
-      } catch {
-        setFaceReady(true); // 检测异常时不阻塞拍摄
+    const tick = () => {
+      if (cancelled) return;
+      const video = videoRef.current;
+      if (video && video.readyState >= 2) {
+        const faces = detect(video, performance.now());
+        setFaceDetected(
+          faces.some((f) => (f.categories?.[0]?.score ?? 1) >= FACE_SCORE_THRESHOLD),
+        );
       }
-      timer = window.setTimeout(tick, 500);
+      timer = window.setTimeout(tick, 200);
     };
-    void tick();
+    tick();
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [state]);
+  }, [state, detectorStatus, detect]);
 
   const capture = useCallback(() => {
     const video = videoRef.current;
@@ -123,7 +113,7 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
     const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
     stop();
     setState("idle");
-    setFaceReady(false);
+    setFaceDetected(false);
     onCapture(dataUrl);
   }, [onCapture, stop]);
 
@@ -147,6 +137,13 @@ export default function CameraCapture({ onCapture, onCancel }: CameraCaptureProp
               }`}
             />
           </div>
+        )}
+
+        {/* 检测器加载提示 */}
+        {state === "ready" && detectorStatus === "loading" && (
+          <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-[11px] text-zinc-300">
+            人脸检测加载中…（不影响拍摄）
+          </span>
         )}
 
         {/* 非就绪态的覆盖层 */}
