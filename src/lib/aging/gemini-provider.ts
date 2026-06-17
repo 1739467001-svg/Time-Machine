@@ -51,6 +51,8 @@ export class GeminiAgingProvider implements AgingProvider {
             ],
           },
         ],
+        // 显式要求图像输出，否则图像模型可能只返回文字描述。
+        generationConfig: { responseModalities: ["IMAGE"] },
       }),
     });
 
