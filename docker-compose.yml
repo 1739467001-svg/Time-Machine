@@ -1,0 +1,22 @@
+# 一键部署：
+#   1) 在本文件同级新建 .env（已被 git 忽略），写入你的百炼 key：
+#        DASHSCOPE_API_KEY=sk-...
+#        DASHSCOPE_REGION=cn          # 北京；新加坡填 intl
+#   2) docker compose up -d --build
+#
+# 注意：摄像头需要 HTTPS（localhost 除外）。生产请在前面放反向代理做 TLS，
+#       详见 docs/DEPLOY.md。
+services:
+  app:
+    build: .
+    image: time-machine
+    container_name: time-machine
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      AGING_PROVIDER: ${AGING_PROVIDER:-qwen}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?请在 .env 中设置 DASHSCOPE_API_KEY}
+      DASHSCOPE_REGION: ${DASHSCOPE_REGION:-cn}
+      # 可选：覆盖图像模型（默认 qwen-image-edit）
+      # QWEN_IMAGE_MODEL: qwen-image-edit
