@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // 输出自包含的 standalone 服务，便于 Docker / 云服务器部署。
-  output: "standalone",
+  // 自托管 / Docker 用 standalone 自包含输出；
+  // Vercel 上用平台自带的构建产物（VERCEL=1 时跳过 standalone）。
+  output: process.env.VERCEL ? undefined : "standalone",
 };
 
 export default nextConfig;

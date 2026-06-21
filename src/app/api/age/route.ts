@@ -4,6 +4,10 @@ import { getAgingProvider } from "@/lib/aging";
 
 // 始终动态执行（依赖运行时环境变量与请求体），不做静态缓存。
 export const dynamic = "force-dynamic";
+// 走 Node.js 运行时：Qwen Provider 用到 Buffer 等 Node API，Edge 没有。
+export const runtime = "nodejs";
+// 图像生成较慢，放宽无服务器函数超时（Vercel 等平台会读取此值，单位秒）。
+export const maxDuration = 60;
 
 // base64 字符串长度上限（约 6MB 解码后），防止超大上传。
 const MAX_IMAGE_CHARS = 8_000_000;

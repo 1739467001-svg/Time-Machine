@@ -78,16 +78,14 @@ src/
 - 默认 `mock` 引擎完全本地，数据不出设备；
 - 切到云端引擎（如 Gemini）时，人脸会上传到对应服务商——届时需在 UI 明确告知并取得用户同意。
 
-## 部署到云服务器
+## 部署
 
-要让它真正联网调百炼生图，部署到你自己的服务器即可（沙箱里有出网白名单限制，你的服务器没有）：
+让它联网调百炼生图，两条路（沙箱有出网白名单，你的部署环境没有）：
 
-```bash
-# 服务器上：写好 .env（AGING_PROVIDER=qwen + 你的 DASHSCOPE_API_KEY），然后
-docker compose up -d --build
-```
+- **Vercel（推荐测试用，自带 HTTPS，摄像头开箱即用）**：导入仓库 → 设环境变量 `AGING_PROVIDER=qwen` / `DASHSCOPE_API_KEY` / `DASHSCOPE_REGION` → Deploy。
+- **自托管**：服务器上写好 `.env`，`docker compose up -d --build`；摄像头需自配 HTTPS 反代。
 
-⚠️ 摄像头需要 **HTTPS**（`localhost` 除外），生产务必在前面配反向代理做 TLS。完整步骤见 [`docs/DEPLOY.md`](docs/DEPLOY.md)。
+完整步骤（含分步降风险、排错）见 [`docs/DEPLOY.md`](docs/DEPLOY.md)。
 
 ## 文档
 
