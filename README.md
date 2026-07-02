@@ -91,6 +91,7 @@ src/
 
 - 产品需求文档（PRD）：[`docs/PRD.md`](docs/PRD.md)
 - 部署指南：[`docs/DEPLOY.md`](docs/DEPLOY.md)
+- 项目上下文提示词（喂给 AI 助手 / 新成员快速上手）：[`docs/PROJECT_PROMPT.md`](docs/PROJECT_PROMPT.md)
 
 ## 路线图
 
