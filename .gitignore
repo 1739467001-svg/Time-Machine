@@ -30,6 +30,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# qwen 自检脚本（scripts/check-qwen.mjs）的产出图
+qwen-out.png
+
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example

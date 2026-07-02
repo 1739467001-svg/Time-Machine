@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:qwen": "node scripts/check-qwen.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.35",

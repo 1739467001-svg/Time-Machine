@@ -6,6 +6,28 @@
 
 ---
 
+## 零、先自检 API Key（30 秒，强烈建议）
+
+正式部署前，先在**有外网的机器**上确认 key 能用、地域对、图像模型已开通，避免部署后才发现出图失败。仓库自带一个自检脚本（复刻了应用里 qwen 引擎的请求）：
+
+```bash
+# 只验证鉴权 / 地域 / 模型开通（用内置测试图）
+DASHSCOPE_API_KEY=sk-你的key DASHSCOPE_REGION=intl node scripts/check-qwen.mjs
+
+# 想顺便肉眼看变老效果：传入一张人脸照片，结果存到 ./qwen-out.png
+DASHSCOPE_API_KEY=sk-你的key node scripts/check-qwen.mjs ./face.jpg
+```
+
+看到 `✓ 成功！` 即代表 key、地域、模型都 OK，可以放心部署。常见失败会给出定向提示：
+
+- `✗ 鉴权失败` → key 抄错，或用错地域（北京 cn / 新加坡 intl 的 key 各自独立，换 `DASHSCOPE_REGION` 再试）。
+- `model … not … / 未开通` → 到百炼控制台开通 `qwen-image-edit`（图像模型通常需单独开通/计费）。
+- `网络请求失败 / Host not in allowlist` → 当前网络（如受限沙箱 / Claude Code 网页版的出网白名单）不允许访问 dashscope，换一台能上网的机器，或把 `dashscope-intl.aliyuncs.com`（及 `dashscope.aliyuncs.com`）加入该环境的出网白名单。
+
+> 🔒 脚本只从环境变量读 key，绝不写文件、绝不提交。
+
+---
+
 ## 环境变量
 
 | 变量 | 必填 | 说明 |
