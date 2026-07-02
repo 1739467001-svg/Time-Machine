@@ -1,9 +1,12 @@
+import { resolveEngineKind } from "./engine-info";
 import { GeminiAgingProvider } from "./gemini-provider";
 import { MockAgingProvider } from "./mock-provider";
 import { QwenAgingProvider } from "./qwen-provider";
 import type { AgingProvider } from "./types";
 
 export type { AgedImage, AgingProvider, AgingRequest } from "./types";
+export { describeEngine, resolveEngineKind } from "./engine-info";
+export type { EngineInfo, EngineKind } from "./engine-info";
 
 /**
  * 根据环境变量 AGING_PROVIDER 选择变老引擎。
@@ -17,12 +20,12 @@ export type { AgedImage, AgingProvider, AgingRequest } from "./types";
  * 实现对应的 Provider 即可，前端与 API 层都不用动。
  */
 export function getAgingProvider(): AgingProvider {
-  const kind = (process.env.AGING_PROVIDER ?? "mock").toLowerCase();
-  switch (kind) {
+  // 引擎选择（含 bailian→qwen 归一化、未知值回落 mock）统一由 resolveEngineKind 决定，
+  // 与 describeEngine() 共用同一份规则，避免两处逻辑漂移。
+  switch (resolveEngineKind()) {
     case "gemini":
       return new GeminiAgingProvider();
     case "qwen":
-    case "bailian":
       return new QwenAgingProvider();
     case "mock":
     default:
