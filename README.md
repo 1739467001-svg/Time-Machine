@@ -6,7 +6,7 @@
 
 ## 当前进度
 
-这是项目的 **Web 骨架**：完整的产品流程已跑通（开启摄像头 → 人脸引导 → 抓拍 → 后端处理 → 时间轴展示），变老引擎目前用**本地占位实现**（`mock`），无需任何 API Key 即可运行。真实出图引擎（nano-banana）已写好参考实现，配好 Key 即可切换。
+这是项目的 **Web 骨架**：完整的产品流程已跑通（摄像头拍摄或导入照片 → 照片复核 → 连续年龄推演 → 时间轴展示），变老引擎可使用本地占位实现（`mock`），无需任何 API Key 即可运行；也可切换至 Qwen 或 Gemini 生成真实年龄变化。
 
 ## 技术栈
 
@@ -39,6 +39,7 @@ pnpm dev
 | --- | --- | --- |
 | `mock`（默认） | `MockAgingProvider` | 本地占位，用 CSS 滤镜模拟变老，免 Key、可离线 |
 | `gemini` | `GeminiAgingProvider` | nano-banana（Gemini 2.5 Flash Image），出图最像，需 `GEMINI_API_KEY` |
+| `stepfun` | `StepFunAgingProvider` | Step Plan `step-image-edit-2`，使用 `/images/edits` 图像接口，需 `STEPFUN_API_KEY` |
 
 ### 接入真实出图（nano-banana）
 
@@ -60,7 +61,7 @@ pnpm dev
 src/
   app/
     page.tsx              # 主流程：开场 → 抓拍 → 处理 → 时间轴
-    api/age/route.ts      # 后端：对 6 个年龄段并行调用变老引擎
+    api/age/route.ts      # 后端：生成单个年龄段并接收上一阶段基线
   components/
     CameraCapture.tsx     # 调摄像头 + 人脸引导 + 抓拍
     AgeTimeline.tsx       # 现在 → +10…+60 时间轴
@@ -101,5 +102,5 @@ src/
 - [x] 精简 PRD
 - [ ] 技术验证（spike）：用真实照片跑通 nano-banana，确认出图质量
 - [ ] 切换云端引擎前的阻断式隐私同意弹窗
-- [ ] 年龄段之间的连贯性（用上一段输出做参考图）
+- [x] 年龄段之间的连贯性（上一段输出作为下一段输入）
 - [ ] 架构文档 / 完整演示

@@ -12,7 +12,7 @@ RUN npm install -g pnpm@10
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm build
+RUN mkdir -p public && pnpm build
 
 # ---- 运行层：仅含运行所需文件 ----
 FROM node:22-alpine AS runner

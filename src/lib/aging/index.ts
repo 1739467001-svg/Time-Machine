@@ -1,9 +1,12 @@
 import { GeminiAgingProvider } from "./gemini-provider";
 import { MockAgingProvider } from "./mock-provider";
+import { normalizeAgingProviderKind } from "./provider-info";
 import { QwenAgingProvider } from "./qwen-provider";
+import { StepFunAgingProvider } from "./stepfun-provider";
 import type { AgingProvider } from "./types";
 
 export type { AgedImage, AgingProvider, AgingRequest } from "./types";
+export type { AgingProviderInfo, AgingProviderKind } from "./provider-info";
 
 /**
  * 根据环境变量 AGING_PROVIDER 选择变老引擎。
@@ -17,15 +20,17 @@ export type { AgedImage, AgingProvider, AgingRequest } from "./types";
  * 实现对应的 Provider 即可，前端与 API 层都不用动。
  */
 export function getAgingProvider(): AgingProvider {
-  const kind = (process.env.AGING_PROVIDER ?? "mock").toLowerCase();
+  const kind = normalizeAgingProviderKind();
   switch (kind) {
     case "gemini":
       return new GeminiAgingProvider();
     case "qwen":
-    case "bailian":
       return new QwenAgingProvider();
+    case "stepfun":
+      return new StepFunAgingProvider();
+    case "invalid":
+      throw new Error("AGING_PROVIDER 配置无效，请使用 mock、gemini、qwen 或 stepfun。");
     case "mock":
-    default:
       return new MockAgingProvider();
   }
 }

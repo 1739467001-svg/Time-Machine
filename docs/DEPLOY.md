@@ -10,10 +10,14 @@
 
 | 变量 | 必填 | 说明 |
 | --- | --- | --- |
-| `AGING_PROVIDER` | 是 | 生图设 `qwen`（百炼）；也可 `gemini` 或 `mock`（占位、不联网） |
-| `DASHSCOPE_API_KEY` | qwen 时必填 | 百炼 API Key（账号需已**开通图像模型**/计费） |
+| `AGING_PROVIDER` | 是 | 生图设 `qwen`、`stepfun` 或 `gemini`；也可 `mock`（占位、不联网） |
+| `DASHSCOPE_API_KEY` | qwen 时必填 | 百炼按量付费业务空间 API Key（`sk-` / `sk-ws`）；不能使用 `sk-sp-` Token/Coding Plan 密钥 |
 | `DASHSCOPE_REGION` | 否 | `cn`=北京（默认）/ `intl`=新加坡。两地 key 与地址独立、不可混用 |
+| `DASHSCOPE_BASE_URL` | 新版 `sk-ws` 必填 | 创建 API Key 时弹窗显示的 API Host，例如 `https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com` |
 | `QWEN_IMAGE_MODEL` | 否 | 默认 `qwen-image-edit`，可改用账号支持的其它图像编辑模型 |
+| `STEPFUN_API_KEY` | stepfun 时必填 | Step Plan 接口密钥 |
+| `STEPFUN_BASE_URL` | 否 | 默认 `https://api.stepfun.com/step_plan/v1` |
+| `STEPFUN_IMAGE_MODEL` | 否 | 默认 `step-image-edit-2` |
 
 > 🔒 **绝不要把 key 写进代码或提交**。一律用平台的环境变量配置；`.env*` 已被 git 忽略。
 
@@ -27,8 +31,9 @@ Vercel 是 Next.js 的原生平台，自动识别本项目（含 pnpm），**无
 2. **配置环境变量**：Project → Settings → Environment Variables，加入（Production 和 Preview 都勾）：
    ```
    AGING_PROVIDER   = qwen
-   DASHSCOPE_API_KEY = sk-你的key
+   DASHSCOPE_API_KEY = sk-ws-你的key
    DASHSCOPE_REGION = cn
+   DASHSCOPE_BASE_URL = https://你的WorkspaceId.cn-beijing.maas.aliyuncs.com
    ```
 3. **Deploy**。完成后 Vercel 给你一个 `https://xxx.vercel.app`，**自带 HTTPS，摄像头直接可用**。
 4. 改了环境变量要 **重新部署**（Deployments → Redeploy）才生效。
@@ -43,8 +48,10 @@ Vercel 是 Next.js 的原生平台，自动识别本项目（含 pnpm），**无
 ### Vercel 注意事项
 
 - **函数超时**：`/api/age` 已在代码里设 `maxDuration = 60`（秒）。生图较慢，Hobby（免费）套餐若仍超时，需要升级或换更快的模型。
-- **函数区域与延迟**：Vercel 函数默认在美国区。若你的 key 是**北京(cn)**，跨境调 `dashscope.aliyuncs.com` 能通但延迟较高；新加坡(intl) key 通常更快。**key 的地域要和 `DASHSCOPE_REGION` 一致**。
+- **函数区域与延迟**：Vercel 函数默认在美国区。北京业务空间跨境调用延迟较高；新加坡业务空间通常更快。**key、API Host 和 `DASHSCOPE_REGION` 必须属于同一地域**。
 - **图像模型权限**：若百炼套餐未含图像模型，调用会返回配额/权限错误——需到百炼控制台开通。
+- **密钥类型**：`sk-sp-` 是 Token Plan / Coding Plan 专属密钥，与百炼通用按量付费 API Key 不可混用；本项目当前的 Qwen-Image-Edit Provider 需要后者。
+- **StepFun 图像接口**：Step Plan 的 `step-image-edit-2` 使用 `POST /images/edits` multipart 接口，不是 Chat Completions；项目已按该协议接入。
 
 ---
 

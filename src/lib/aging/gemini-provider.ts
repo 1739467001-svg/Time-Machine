@@ -1,4 +1,5 @@
 import { buildAgingPrompt } from "./prompt";
+import { fetchWithRetry, readJsonResponse } from "./request";
 import type { AgedImage, AgingProvider, AgingRequest } from "./types";
 
 /**
@@ -32,11 +33,11 @@ export class GeminiAgingProvider implements AgingProvider {
     this.model = process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image";
   }
 
-  async age({ imageDataUrl, step }: AgingRequest): Promise<AgedImage> {
+  async age({ imageDataUrl, step, sourceYearsFromNow = 0, currentAge = 20 }: AgingRequest): Promise<AgedImage> {
     const { mimeType, base64 } = parseDataUrl(imageDataUrl);
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`;
 
-    const res = await fetch(endpoint, {
+    const res = await fetchWithRetry(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -46,7 +47,7 @@ export class GeminiAgingProvider implements AgingProvider {
         contents: [
           {
             parts: [
-              { text: buildAgingPrompt(step) },
+              { text: buildAgingPrompt(step, sourceYearsFromNow, currentAge) },
               { inlineData: { mimeType, data: base64 } },
             ],
           },
@@ -56,11 +57,8 @@ export class GeminiAgingProvider implements AgingProvider {
       }),
     });
 
-    if (!res.ok) {
-      throw new Error(`Gemini 请求失败 ${res.status}: ${await res.text()}`);
-    }
-
-    const json = (await res.json()) as GeminiResponse;
+    const json = await readJsonResponse<GeminiResponse>(res, "Gemini");
+    if (!res.ok) throw new Error(`Gemini 请求失败 ${res.status}`);
     const parts = json.candidates?.[0]?.content?.parts ?? [];
     const imagePart = parts.find((p) => p.inlineData?.data);
     if (!imagePart?.inlineData) {

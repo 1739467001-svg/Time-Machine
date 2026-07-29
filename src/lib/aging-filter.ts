@@ -7,9 +7,10 @@
  * 接入真实模型后 placeholder=false，不再套用。
  */
 export function agingFilter(intensity: number): string {
-  const sepia = (0.45 * intensity).toFixed(2);
-  const grayscale = (0.35 * intensity).toFixed(2);
-  const contrast = (1 + 0.1 * intensity).toFixed(2);
-  const brightness = (1 - 0.12 * intensity).toFixed(2);
-  return `sepia(${sepia}) grayscale(${grayscale}) contrast(${contrast}) brightness(${brightness})`;
+  const sepia = (0.58 * intensity).toFixed(2);
+  const grayscale = (0.5 * intensity).toFixed(2);
+  const contrast = (1 + 0.18 * intensity).toFixed(2);
+  const brightness = (1 - 0.18 * intensity).toFixed(2);
+  const saturate = (1 - 0.34 * intensity).toFixed(2);
+  return `sepia(${sepia}) grayscale(${grayscale}) contrast(${contrast}) brightness(${brightness}) saturate(${saturate})`;
 }

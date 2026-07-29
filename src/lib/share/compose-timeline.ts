@@ -60,6 +60,10 @@ export async function composeTimeline(cards: TimelineCard[]): Promise<Blob> {
     drawCover(ctx, images[i], x, y, CELL, CELL);
     ctx.restore();
 
+    if (card.placeholder && card.intensity) {
+      drawMockAgingTexture(ctx, x, y, CELL, CELL, card.intensity);
+    }
+
     // 标签
     ctx.fillStyle = "#ffffff";
     ctx.font = "600 24px -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif";
@@ -107,4 +111,64 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     img.onerror = () => reject(new Error("图片加载失败"));
     img.src = src;
   });
+}
+
+function drawMockAgingTexture(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  intensity: number,
+) {
+  ctx.save();
+  ctx.globalAlpha = 0.12 + intensity * 0.28;
+
+  // 顶部银灰层：让头发区域在占位模式下有更明显的年龄递进。
+  const hair = ctx.createLinearGradient(x, y, x, y + h * 0.38);
+  hair.addColorStop(0, `rgba(235, 239, 226, ${0.28 * intensity})`);
+  hair.addColorStop(0.6, "rgba(235, 239, 226, 0)");
+  ctx.fillStyle = hair;
+  ctx.fillRect(x, y, w, h * 0.42);
+
+  // 横向细纹：模拟皮肤纹理与皱纹，不做脸部识别，保持演示用的克制效果。
+  ctx.strokeStyle = `rgba(38, 22, 14, ${0.28 * intensity})`;
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 8; i += 1) {
+    const yy = y + h * (0.24 + i * 0.052);
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.2, yy);
+    ctx.quadraticCurveTo(x + w * 0.5, yy + (i % 2 ? 4 : -3), x + w * 0.8, yy + 1);
+    ctx.stroke();
+  }
+
+  // 年龄斑：确定性分布，导出同一张图时不会闪烁。
+  ctx.fillStyle = `rgba(75, 42, 20, ${0.22 * intensity})`;
+  for (let i = 0; i < 28; i += 1) {
+    const px = x + w * deterministic(i, 0.17);
+    const py = y + h * (0.18 + deterministic(i, 0.41) * 0.62);
+    const r = 0.8 + deterministic(i, 0.73) * 1.9 * intensity;
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const vignette = ctx.createRadialGradient(
+    x + w * 0.5,
+    y + h * 0.45,
+    w * 0.12,
+    x + w * 0.5,
+    y + h * 0.5,
+    w * 0.72,
+  );
+  vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+  vignette.addColorStop(1, `rgba(18, 12, 8, ${0.28 * intensity})`);
+  ctx.fillStyle = vignette;
+  ctx.fillRect(x, y, w, h);
+
+  ctx.restore();
+}
+
+function deterministic(index: number, salt: number) {
+  return Math.abs(Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453) % 1;
 }

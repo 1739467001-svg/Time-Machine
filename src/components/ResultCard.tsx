@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { agingFilter } from "@/lib/aging-filter";
 import type { AgedImage } from "@/lib/aging";
 
@@ -8,8 +9,9 @@ interface ResultCardProps {
   yearsFromNow: number;
   status: CardStatus;
   result?: AgedImage;
-  /** 失败时的重试回调（「现在」卡片不需要） */
+  error?: string;
   onRetry?: () => void;
+  sequence?: number;
 }
 
 export default function ResultCard({
@@ -17,62 +19,83 @@ export default function ResultCard({
   yearsFromNow,
   status,
   result,
+  error,
   onRetry,
+  sequence = 0,
 }: ResultCardProps) {
   const isNow = yearsFromNow === 0;
   const filter =
     result?.placeholder && result.intensity ? agingFilter(result.intensity) : undefined;
+  const statusLabel = getStatusLabel(status, isNow, result?.placeholder);
+  const agingIntensity = result?.placeholder ? result.intensity ?? 0 : 0;
+  const agingOverlayStyle = {
+    "--age-opacity": (0.25 + agingIntensity * 0.62).toFixed(2),
+    "--age-spot-a": (agingIntensity * 0.2).toFixed(3),
+    "--age-spot-b": (agingIntensity * 0.22).toFixed(3),
+    "--age-spot-c": (agingIntensity * 0.18).toFixed(3),
+    "--age-line-a": (agingIntensity * 0.16).toFixed(3),
+    "--age-wrinkle-a": (agingIntensity * 0.82).toFixed(3),
+    "--age-silver-a": (agingIntensity * 0.22).toFixed(3),
+    "--age-screen-a": (agingIntensity * 0.42).toFixed(3),
+  } as CSSProperties;
 
   return (
-    <figure className="group flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-      <div className="relative aspect-square w-full overflow-hidden bg-black/40">
+    <figure
+      className={`time-slice-card is-${status}`}
+      style={{ "--slice-index": sequence } as CSSProperties}
+    >
+      <div className="slice-header">
+        <span>{label}</span>
+        <strong>{isNow ? "BASELINE" : `+${yearsFromNow} YEARS`}</strong>
+      </div>
+
+      <div className="slice-image">
         {status === "done" && result && (
           // 结果是动态尺寸的 data URL，用原生 img 更合适；故关闭 next/image 规则
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={result.imageUrl}
-            alt={label}
-            style={{ filter }}
-            className="fade-in h-full w-full object-cover"
+          <img src={result.imageUrl} alt={label} style={{ filter }} />
+        )}
+
+        {status === "done" && result?.placeholder && !isNow && (
+          <div
+            className="mock-aging-overlay"
+            style={agingOverlayStyle}
+            aria-hidden="true"
           />
         )}
 
         {status === "pending" && (
-          <div className="flex h-full w-full animate-pulse items-center justify-center bg-white/5">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/15 border-t-emerald-400" />
+          <div className="slice-pending" aria-label="生成中">
+            <span />
+            <p>切片生成中</p>
           </div>
         )}
 
         {status === "error" && (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3 text-center">
-            <p className="text-xs text-rose-300">生成失败</p>
+          <div className="slice-error">
+            <p>{error || "时间切片失败"}</p>
             {onRetry && (
-              <button
-                onClick={onRetry}
-                className="rounded-full border border-white/20 px-3 py-1 text-xs text-white transition hover:bg-white/10"
-              >
+              <button onClick={onRetry} className="inline-command">
                 重试
               </button>
             )}
           </div>
         )}
 
-        {isNow && (
-          <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold text-black">
-            现在
-          </span>
-        )}
-        {result?.placeholder && !isNow && status === "done" && (
-          <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-zinc-300">
-            占位预览
-          </span>
-        )}
+        {status === "done" && <div className="slice-shine" aria-hidden="true" />}
       </div>
 
-      <figcaption className="flex items-baseline justify-between px-3 py-2">
-        <span className="text-sm font-semibold text-white">{label}</span>
-        {!isNow && <span className="text-xs text-zinc-400">+{yearsFromNow} 岁</span>}
+      <figcaption className="slice-footer">
+        <span>{statusLabel}</span>
+        <i aria-hidden="true" />
       </figcaption>
     </figure>
   );
+}
+
+function getStatusLabel(status: CardStatus, isNow: boolean, placeholder?: boolean) {
+  if (status === "pending") return "等待输出";
+  if (status === "error") return "需要重试";
+  if (isNow) return "当前基准";
+  return placeholder ? "占位预览" : "AI 输出";
 }

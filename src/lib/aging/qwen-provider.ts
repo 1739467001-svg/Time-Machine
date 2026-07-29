@@ -1,4 +1,6 @@
 import { buildAgingPrompt } from "./prompt";
+import { getQwenConfigurationStatus } from "./provider-info";
+import { fetchWithRetry, readJsonResponse } from "./request";
 import type { AgedImage, AgingProvider, AgingRequest } from "./types";
 
 const REGION_BASE: Record<string, string> = {
@@ -29,6 +31,10 @@ export class QwenAgingProvider implements AgingProvider {
   private readonly model: string;
 
   constructor() {
+    const configuration = getQwenConfigurationStatus();
+    if (!configuration.ready) {
+      throw new Error(configuration.error ?? "百炼图像服务配置不完整。");
+    }
     const apiKey = process.env.DASHSCOPE_API_KEY;
     if (!apiKey) {
       throw new Error(
@@ -37,15 +43,18 @@ export class QwenAgingProvider implements AgingProvider {
     }
     this.apiKey = apiKey;
     const region = (process.env.DASHSCOPE_REGION ?? "intl").toLowerCase();
-    this.baseUrl =
-      process.env.DASHSCOPE_BASE_URL ?? REGION_BASE[region] ?? REGION_BASE.intl;
+    this.baseUrl = (
+      process.env.DASHSCOPE_BASE_URL ??
+      REGION_BASE[region] ??
+      REGION_BASE.intl
+    ).replace(/\/$/, "");
     this.model = process.env.QWEN_IMAGE_MODEL ?? "qwen-image-edit";
   }
 
-  async age({ imageDataUrl, step }: AgingRequest): Promise<AgedImage> {
+  async age({ imageDataUrl, step, sourceYearsFromNow = 0, currentAge = 20 }: AgingRequest): Promise<AgedImage> {
     const endpoint = `${this.baseUrl}/api/v1/services/aigc/multimodal-generation/generation`;
 
-    const res = await fetch(endpoint, {
+    const res = await fetchWithRetry(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -57,7 +66,10 @@ export class QwenAgingProvider implements AgingProvider {
           messages: [
             {
               role: "user",
-              content: [{ image: imageDataUrl }, { text: buildAgingPrompt(step) }],
+              content: [
+                { image: imageDataUrl },
+                { text: buildAgingPrompt(step, sourceYearsFromNow, currentAge) },
+              ],
             },
           ],
         },
@@ -65,7 +77,7 @@ export class QwenAgingProvider implements AgingProvider {
       }),
     });
 
-    const json = (await res.json()) as DashScopeResponse;
+    const json = await readJsonResponse<DashScopeResponse>(res, "百炼");
     if (!res.ok || json.code) {
       throw new Error(
         `百炼请求失败 ${res.status} ${json.code ?? ""}: ${
@@ -109,7 +121,7 @@ interface DashScopeResponse {
 /** 把远程图片 URL 下载并转为 base64 data URL；已是 data URL 则原样返回。 */
 async function toDataUrl(ref: string): Promise<string> {
   if (ref.startsWith("data:")) return ref;
-  const res = await fetch(ref);
+  const res = await fetchWithRetry(ref);
   if (!res.ok) throw new Error(`下载结果图失败 ${res.status}`);
   const buffer = Buffer.from(await res.arrayBuffer());
   const mime = res.headers.get("content-type") ?? "image/png";

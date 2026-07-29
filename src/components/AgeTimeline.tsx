@@ -1,51 +1,85 @@
+import type { CSSProperties } from "react";
 import type { AgeStep } from "@/lib/ages";
 import type { AgedImage } from "@/lib/aging";
 import ResultCard, { type CardStatus } from "./ResultCard";
 
-/** 单个未来年龄段的加载状态 */
 export interface AgeCard {
   step: AgeStep;
   status: CardStatus;
   result?: AgedImage;
+  error?: string;
 }
 
 interface AgeTimelineProps {
-  /** 抓拍的原图（「现在」），data URL */
   originalImage: string;
-  /** 各未来年龄段的卡片 */
   cards: AgeCard[];
-  /** 重试某个失败的年龄段 */
   onRetry: (stepId: string) => void;
 }
 
-export default function AgeTimeline({ originalImage, cards, onRetry }: AgeTimelineProps) {
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      {/* 「现在」卡片：始终就绪 */}
-      <ResultCard
-        label="现在"
-        yearsFromNow={0}
-        status="done"
-        result={{
-          stepId: "now",
-          yearsFromNow: 0,
-          label: "现在",
-          imageUrl: originalImage,
-          placeholder: false,
-        }}
-      />
+interface TimelineItem {
+  id: string;
+  label: string;
+  yearsFromNow: number;
+  status: CardStatus;
+  result?: AgedImage;
+  error?: string;
+  onRetry?: () => void;
+}
 
-      {/* 各未来年龄段 */}
-      {cards.map((card) => (
-        <ResultCard
-          key={card.step.id}
-          label={card.step.label}
-          yearsFromNow={card.step.yearsFromNow}
-          status={card.status}
-          result={card.result}
-          onRetry={() => onRetry(card.step.id)}
-        />
-      ))}
+export default function AgeTimeline({ originalImage, cards, onRetry }: AgeTimelineProps) {
+  const items: TimelineItem[] = [
+    {
+      id: "now",
+      label: "现在",
+      yearsFromNow: 0,
+      status: "done",
+      result: {
+        stepId: "now",
+        yearsFromNow: 0,
+        label: "现在",
+        imageUrl: originalImage,
+        placeholder: false,
+      },
+    },
+    ...cards.map((card) => ({
+      id: card.step.id,
+      label: card.step.label,
+      yearsFromNow: card.step.yearsFromNow,
+      status: card.status,
+      result: card.result,
+      error: card.error,
+      onRetry: () => onRetry(card.step.id),
+    })),
+  ];
+
+  return (
+    <div className="timeline-console">
+      <div className="timeline-rail" aria-hidden="true">
+        <span />
+      </div>
+
+      <div className="timeline-list">
+        {items.map((item, index) => (
+          <article
+            key={item.id}
+            className={`timeline-node is-${item.status}`}
+            style={{ "--node-index": index } as CSSProperties}
+          >
+            <div className="node-marker">
+              <span>{item.yearsFromNow === 0 ? "NOW" : `+${item.yearsFromNow}`}</span>
+            </div>
+            <ResultCard
+              label={item.label}
+              yearsFromNow={item.yearsFromNow}
+              status={item.status}
+              result={item.result}
+              error={item.error}
+              onRetry={item.onRetry}
+              sequence={index}
+            />
+          </article>
+        ))}
+      </div>
     </div>
   );
 }

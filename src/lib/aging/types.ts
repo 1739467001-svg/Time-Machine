@@ -6,6 +6,10 @@ export interface AgingRequest {
   imageDataUrl: string;
   /** 目标年龄段 */
   step: AgeStep;
+  /** 源图已经处于距当前多少年的阶段；0 表示原始照片。 */
+  sourceYearsFromNow?: number;
+  /** 用户当前年龄，用于把相对年份转换成明确目标年龄。 */
+  currentAge?: number;
 }
 
 /** 变老结果：某个年龄段对应的图像 */
